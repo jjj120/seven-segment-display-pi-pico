@@ -25,7 +25,7 @@ GPIO = 0b00000000000000000000000000000000
 # E    C
 #  DDDD   P
 
-NUMBERS = {
+CHARS = {
 # STR  0bABCDEFGP, #ASCII CHAR   Note
   "0": 0b11111100, # 48   '0'
   "1": 0b01100000, # 49   '1'
@@ -65,15 +65,15 @@ NUMBERS = {
   'Z': 0b11011010, # 90   'Z'    Same as '2'
   ' ': 0b00000000, # 32   ' '    BLANK
   '-': 0b00000010, # 45   '-'    DASH
-  '.': 0b00000001, # 46   '.'    PERIOD
-  '*': 0b11000110, # 42   '*'    DEGREE ..
+  '.': 0b00000001, # 46   '.'    DOT/COMMA
+  '*': 0b11000110, # 42   '*'    STAR
   '_': 0b00010000, # 95   '_'    UNDERSCORE
 }
 
 class sevSeg():
     COMMON_CATHODE = 0
     COMMON_ANODE = 1
-    NUMBERS = NUMBERS
+    NUMBERS = CHARS
 
     def __init__(self, digits: list, segments: list, common: int = COMMON_CATHODE, led_on_time: int = LED_ON_TIME, digit_delay: int = DIGIT_DELAY):
         """
@@ -158,6 +158,7 @@ class sevSeg():
         for index, segment in enumerate(binLst):
             if (segment == '1'): self.setDigitSegment(digit, index)
     
+
     def setComma(self, digit: int) -> None:
         """
         Sets the comma on (after) the specified digit
@@ -167,7 +168,8 @@ class sevSeg():
         if (digit > len(self.digits) - 1): raise ValueError("Digit out of range")
 
         #set comma
-        self.setDigitSegment(digit, 7)
+        self.setDigit(digit, ".")
+    
     
     def setDigitSegment(self, digit: int, segment: int) -> None:
         """
@@ -182,6 +184,44 @@ class sevSeg():
 
         #set segment
         self.setGPIO[digit] = self.setGPIO[digit] | self.segmentsBin[segment]
+    
+
+    def setString(self, string: str) -> None:
+        """
+        Sets the display to show the specified string
+        NOTE: only supports max. 4 characters plus one comma after each character
+        """
+        # error checking
+        if type(string) != str: raise TypeError("String must be a string")
+
+        if (len(string) > len(self.digits) * 2): raise ValueError("String too long")
+        numberCommas = string.count(",") + string.count(".") #count commas and dots
+        if (numberCommas > len(self.digits)): raise ValueError("Too many commas/dots")
+        if (len(string) - numberCommas > len(self.digits)): raise ValueError("Too many characters")
+
+        #insert space between double commas and before first comma and check for length errors
+        if (string[0] == "," or string[0] == "."): string = " " + string
+        string = string.replace(",,", ", ,").replace("..", ". .") #insert space between double commas
+        if (len(string) > len(self.digits) * 2): raise ValueError("Too many double commas/dots")
+        if (len(string) - numberCommas > len(self.digits)): raise ValueError("Too many characters after inserting spaces")
+        
+
+        #strip string from commas and dots
+        stringClear = string.replace(",", "")
+        stringClear = stringClear.replace(".", "")
+
+        for index, character in enumerate(stringClear):
+            self.setDigit(index, character)
+        
+        #get positions of commas and dots
+        commaPos = []
+        for index, character in enumerate(string):
+            if (character == ","): commaPos.append(index - len(commaPos) - 1)
+            if (character == "."): commaPos.append(index - len(commaPos) - 1)
+
+        #set commas and dots
+        for pos in commaPos: self.setComma(pos)
+        
     
 
     def refreshDisplay(self) -> None:
@@ -211,45 +251,6 @@ class sevSeg():
             mem32[GPIO_SIO_ADDR + GPIO_OUT_IS_CLR_DIG] = self.segmentsGPIO #reset all segments
             mem32[GPIO_SIO_ADDR + GPIO_OUT_IS_CLR_SEG] = self.digitsBin[digIndex] #reset all segments
             time.sleep_us(self.digit_delay)
-    
-    def setString(self, string: str) -> None:
-        """
-        Sets the display to show the specified string
-        NOTE: only supports max. 4 characters plus one comma after each character
-        """
-        # error checking
-        if type(string) != str: raise TypeError("String must be a string")
-
-        if (len(string) > 8): raise ValueError("String too long")
-        numberCommas = string.count(",") + string.count(".") #count commas and dots
-        if (numberCommas > 4): raise ValueError("Too many commas/dots")
-        if (len(string) - numberCommas > 4): raise ValueError("Too many characters")
-
-        #insert space between double commas and before first comma and check for length errors
-        if (string[0] == "," or string[0] == "."): string = " " + string
-        string = string.replace(",,", ", ,").replace("..", ". .") #insert space between double commas
-        if (len(string) > 8): raise ValueError("Too many double commas/dots")
-        if (len(string) - numberCommas > 4): raise ValueError("Too many characters after inserting spaces")
-        
-
-        #strip string from commas and dots
-        stringClear = string.replace(",", "")
-        stringClear = stringClear.replace(".", "")
-
-        for index, character in enumerate(stringClear):
-            self.setDigit(index, character)
-        
-        #get positions of commas and dots
-        commaPos = []
-        for index, character in enumerate(string):
-            if (character == ","): commaPos.append(index - len(commaPos) - 1)
-            if (character == "."): commaPos.append(index - len(commaPos) - 1)
-
-        print(commaPos)
-        #set commas and dots
-        for pos in commaPos: self.setComma(pos)
-        
-
 
 
 # testing code below
